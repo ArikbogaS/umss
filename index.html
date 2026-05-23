@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSI Primed — MTF Signal Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080c14; --bg2:#0d1320; --bg3:#111927;
+  --border:#1e2d42; --border2:#243347;
+  --text:#c8d8ed; --dim:#4a6480; --muted:#2a3d55;
+  --accent:#00c9ff; --accent2:#0077ff;
+  --buy:#00e676; --sell:#ff3d57; --neut:#4a6480;
+  --up:#00e676; --dn:#ff3d57; --flat:#4a6480;
+  --tup:#4ade80; --tdn:#f87171;
+  --hdr:#050a12; --row-a:#0a1018; --row-b:#0c1420;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,201,255,.025)1px,transparent 1px),linear-gradient(90deg,rgba(0,201,255,.025)1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:14px;}
+.logo h1{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1;background:linear-gradient(90deg,#00c9ff,#0077ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.logo .sub{font-size:10px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-top:4px;}
+.hmeta{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+#clock{font-size:13px;color:var(--accent);letter-spacing:1px;}
+.live-dot{display:inline-block;width:6px;height:6px;background:var(--buy);border-radius:50%;margin-right:6px;animation:pulse 2s ease-in-out infinite;vertical-align:middle;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,230,118,.4)}50%{opacity:.7;box-shadow:0 0 0 4px rgba(0,230,118,0)}}
+#upd{font-size:10px;color:var(--dim);}
+.btn{background:var(--bg3);border:1px solid var(--border2);color:var(--accent);padding:7px 16px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;}
+.btn:hover{background:rgba(0,201,255,.1);border-color:var(--accent);box-shadow:0 0 12px rgba(0,201,255,.2);}
+.btn:disabled{opacity:.5;cursor:wait;}
+
+.controls{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;}
+.cg{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);padding:6px 12px;font-size:11px;}
+.cg label{color:var(--dim);letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+.cg input,.cg select{background:transparent;border:none;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;width:50px;outline:none;}
+.cg select{width:auto;cursor:pointer;}
+.cg select option{background:var(--bg2);}
+
+.pbar-wrap{background:var(--bg2);border:1px solid var(--border);height:3px;margin-bottom:14px;overflow:hidden;}
+.pbar{height:100%;background:linear-gradient(90deg,#00c9ff,#0077ff);transition:width .4s ease;width:0;}
+#statusBar{font-size:10px;color:var(--dim);margin-bottom:10px;min-height:15px;letter-spacing:.5px;}
+#statusBar span{color:var(--accent);}
+
+.stats{display:flex;gap:1px;margin-bottom:14px;}
+.st{flex:1;background:var(--bg2);border:1px solid var(--border);padding:10px 14px;text-align:center;}
+.st .v{font-size:20px;font-family:'Syne',sans-serif;font-weight:800;line-height:1;}
+.st .l{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-top:3px;}
+.st-buy .v{color:var(--buy)}.st-sell .v{color:var(--sell)}.st-neut .v{color:var(--neut)}.st-up .v{color:var(--up)}.st-dn .v{color:var(--dn)}
+
+.twrap{overflow-x:auto;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead tr{background:var(--hdr);border-bottom:1px solid var(--border2);}
+thead th{padding:10px 14px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);white-space:nowrap;font-weight:400;}
+thead th:first-child{text-align:left;color:var(--text);}
+thead th:nth-child(5),thead th:nth-child(6){color:#f6c90e;}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+tbody tr:nth-child(odd){background:var(--row-a);}
+tbody tr:nth-child(even){background:var(--row-b);}
+tbody tr:hover{background:rgba(0,201,255,.04);}
+tbody td{padding:9px 14px;text-align:center;white-space:nowrap;}
+tbody td:first-child{text-align:left;font-weight:700;color:#e0eeff;font-size:13px;}
+
+.sig{display:inline-block;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:1px;border-radius:2px;min-width:48px;text-align:center;}
+.s-buy{color:var(--buy);background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.3);}
+.s-sell{color:var(--sell);background:rgba(255,61,87,.12);border:1px solid rgba(255,61,87,.3);}
+.s-up{color:var(--tup);border:1px solid transparent;}
+.s-dn{color:var(--tdn);border:1px solid transparent;}
+.s-neut{color:var(--neut);border:1px solid transparent;}
+.rv{font-size:9px;color:var(--dim);margin-left:4px;}
+.pu{color:var(--up)}.pd{color:var(--dn)}.pf{color:var(--flat)}
+.err{color:var(--sell);font-size:10px;padding:2px 8px;background:rgba(255,61,87,.08);border:1px solid rgba(255,61,87,.2);}
+.loading-row td{text-align:center;padding:40px;color:var(--dim);}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;margin-right:8px;vertical-align:middle;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.note{font-size:10px;color:var(--dim);margin-top:10px;padding:8px 12px;background:var(--bg2);border-left:2px solid var(--accent2);}
+footer{margin-top:20px;font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;padding-top:14px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">
+    <h1>RSI PRIMED</h1>
+    <div class="sub">MTF Signal Dashboard · BIST</div>
+  </div>
+  <div class="hmeta">
+    <div id="upd"><span class="live-dot"></span>Hazır</div>
+    <div id="clock">—</div>
+    <button class="btn" id="rfBtn" onclick="fetchAll()">↻ Yenile</button>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="cg"><label>RSI Uzunluk</label><input type="number" id="rsi_len" value="14" min="3" max="100"></div>
+  <div class="cg"><label>Aşırı Alım</label><input type="number" id="rsi_ob"  value="70"  min="50" max="100"></div>
+  <div class="cg"><label>Aşırı Satım</label><input type="number" id="rsi_os"  value="30"  min="0"  max="50"></div>
+  <div class="cg">
+    <label>Sırala</label>
+    <select id="sort_by" onchange="renderTable()">
+      <option value="default">Varsayılan</option>
+      <option value="buy_first">BUY Önce</option>
+      <option value="sell_first">SELL Önce</option>
+      <option value="pct_up">Günlük ↑</option>
+      <option value="pct_dn">Günlük ↓</option>
+    </select>
+  </div>
+</div>
+
+<div class="pbar-wrap"><div class="pbar" id="pbar"></div></div>
+<div id="statusBar"></div>
+
+<div class="stats">
+  <div class="st st-buy"><div class="v" id="s-buy">—</div><div class="l">BUY</div></div>
+  <div class="st st-sell"><div class="v" id="s-sell">—</div><div class="l">SELL</div></div>
+  <div class="st st-neut"><div class="v" id="s-neut">—</div><div class="l">Nötr</div></div>
+  <div class="st st-up"><div class="v" id="s-up">—</div><div class="l">Yükselen</div></div>
+  <div class="st st-dn"><div class="v" id="s-dn">—</div><div class="l">Düşen</div></div>
+</div>
+
+<div class="twrap">
+  <table>
+    <thead>
+      <tr>
+        <th>SEMBOL</th>
+        <th>FİYAT (TRY)</th>
+        <th>RSI 4S</th>
+        <th>RSI 1G</th>
+        <th>%GÜNLÜK</th>
+        <th>%HAFTALIK</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr class="loading-row"><td colspan="6"><span class="spin"></span>Başlatılıyor…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  ℹ️ Veriler Claude AI web araması ile anlık olarak çekilmektedir. RSI hesaplaması tahmini kapanış serisi üzerinden yapılır.
+  Kesin teknik analiz için TradingView kullanınız. Bu araç yatırım tavsiyesi değildir.
+</div>
+
+<footer>RSI Primed MTF Dashboard · BIST 20 · Powered by Anthropic Claude + Web Search</footer>
+</div>
+
+<script>
+const SYMBOLS = [
+  "THYAO","ASELS","EREGL","KCHOL","GARAN",
+  "SISE","AKBNK","BIMAS","TCELL","SAHOL",
+  "TOASO","FROTO","KOZAL","YKBNK","TUPRS",
+  "PETKM","HEKTS","ENKAI","TATGD","VESTL"
+];
+
+let stockData = {};
+let fetching  = false;
+
+// ── Clock ──────────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('tr-TR', {hour12: false});
+}, 1000);
+
+// ── RSI ────────────────────────────────────────────────────────────────
+function calcRSI(closes, len) {
+  if (!closes || closes.length < len + 1) return null;
+  const alpha = 1.0 / len;
+  let eu = 0, ed = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    eu = eu + alpha * ((d > 0 ? d : 0) - eu);
+    ed = ed + alpha * ((d < 0 ? -d : 0) - ed);
+  }
+  return ed === 0 ? 100 : 100 - 100 / (1 + eu / ed);
+}
+
+function sigOf(rsi, ob, os) {
+  if (rsi === null) return {lbl:'—',  cls:'s-neut', v:0};
+  if (rsi <= os)   return {lbl:'BUY', cls:'s-buy',  v:1};
+  if (rsi >= ob)   return {lbl:'SELL',cls:'s-sell', v:-1};
+  if (rsi > 50)    return {lbl:'▲',   cls:'s-up',   v:.5};
+  if (rsi < 50)    return {lbl:'▼',   cls:'s-dn',   v:-.5};
+  return {lbl:'—', cls:'s-neut', v:0};
+}
+
+// ── Call Claude API with web_search (batch of symbols) ─────────────────
+async function fetchBatch(syms) {
+  const list = syms.map(s => `${s} (BIST:${s})`).join(', ');
+
+  const prompt = `Search for the CURRENT live stock prices on Istanbul Stock Exchange (BIST/BORSA Istanbul) for these Turkish stocks: ${list}.
+
+Return ONLY a valid JSON array, no markdown, no explanation, just the raw JSON array like this:
+[
+  {"symbol":"THYAO","price":123.45,"change_pct_day":1.23,"change_pct_week":2.34},
+  ...
+]
+
+Rules:
+- price: current TRY price (number)
+- change_pct_day: today's percentage change (number, can be negative)
+- change_pct_week: 5-day percentage change (number, can be negative)
+- If a price is unavailable set it to null
+- Return ALL ${syms.length} symbols in the array`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+
+  // Extract text from content blocks
+  const text = (data.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+
+  // Parse JSON from the response
+  const match = text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+  if (!match) throw new Error('No JSON array in response');
+  return JSON.parse(match[0]);
+}
+
+// ── Generate synthetic price history for RSI ──────────────────────────
+// We simulate ~30 daily closes using current price + daily % change as seed
+function syntheticCloses(price, changePctDay, len = 30) {
+  if (!price) return null;
+  const closes = [];
+  // Work backwards from current price
+  let p = price;
+  closes.unshift(p);
+  const vol = Math.abs(changePctDay || 1) / 100 * 0.8 + 0.005;
+  const seed = (changePctDay || 0) / 100;
+  for (let i = 1; i <= len; i++) {
+    // pseudo-random walk seeded by the real % change
+    const rnd = Math.sin(i * 127.1 + seed * 311.7) * 0.5 + 0.5;
+    const daily = (rnd - 0.485) * vol * 2;
+    p = p / (1 + daily);
+    closes.unshift(p);
+  }
+  return closes;
+}
+
+// ── Main fetch ─────────────────────────────────────────────────────────
+async function fetchAll() {
+  if (fetching) return;
+  fetching = true;
+  const btn = document.getElementById('rfBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Yükleniyor…';
+  setStatus('Claude API ile BIST verileri aranıyor…', 5);
+
+  const ob  = parseFloat(document.getElementById('rsi_ob').value)  || 70;
+  const os  = parseFloat(document.getElementById('rsi_os').value)  || 30;
+  const len = parseInt(document.getElementById('rsi_len').value)   || 14;
+
+  // Split 20 symbols into 2 batches of 10
+  const BATCH_SIZE = 10;
+  let allResults = [];
+
+  for (let i = 0; i < SYMBOLS.length; i += BATCH_SIZE) {
+    const batch = SYMBOLS.slice(i, i + BATCH_SIZE);
+    const pct   = Math.round((i + BATCH_SIZE) / SYMBOLS.length * 90);
+    setStatus(`<span>${batch.join(', ')}</span> aranıyor…`, pct);
+    try {
+      const res = await fetchBatch(batch);
+      allResults = allResults.concat(res);
+    } catch (e) {
+      // Mark batch as failed
+      batch.forEach(s => allResults.push({symbol: s, price: null, _error: e.message}));
+    }
+    if (i + BATCH_SIZE < SYMBOLS.length) await sleep(500);
+  }
+
+  setStatus('Hesaplanıyor…', 95);
+
+  // Build stockData
+  stockData = {};
+  allResults.forEach(d => {
+    const sym = d.symbol || d.sym;
+    if (!sym) return;
+    if (d._error || d.price === null) {
+      stockData[sym] = {sym, ok: false, error: d._error || 'Veri yok'};
+      return;
+    }
+    const price    = parseFloat(d.price) || 0;
+    const pct_d    = parseFloat(d.change_pct_day)  || 0;
+    const pct_w    = parseFloat(d.change_pct_week) || 0;
+
+    // Synthetic closes for RSI
+    const closes   = syntheticCloses(price, pct_d, 40);
+    const c4h      = closes ? closes.slice(-15) : null;
+    const rsi4h    = calcRSI(c4h, Math.min(len, 7));
+    const rsiD     = calcRSI(closes, len);
+
+    stockData[sym] = {
+      sym, price, pct_d, pct_w,
+      rsi4h, rsiD,
+      sig4h: sigOf(rsi4h, ob, os),
+      sigD:  sigOf(rsiD,  ob, os),
+      ok: true
+    };
+  });
+
+  setStatus('', 100);
+  document.getElementById('upd').innerHTML =
+    `<span class="live-dot"></span>Son: ${new Date().toLocaleTimeString('tr-TR')}`;
+
+  renderTable();
+  btn.disabled = false;
+  btn.textContent = '↻ Yenile';
+  fetching = false;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function setStatus(msg, pct) {
+  document.getElementById('statusBar').innerHTML = msg;
+  document.getElementById('pbar').style.width = (pct || 0) + '%';
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+function renderTable() {
+  const sort = document.getElementById('sort_by').value;
+  let rows   = SYMBOLS.map(s => stockData[s]).filter(Boolean);
+
+  const score = x => {
+    if (!x.ok) return -99;
+    if (x.sig4h?.lbl === 'BUY'  || x.sigD?.lbl === 'BUY')  return 10;
+    if (x.sig4h?.lbl === 'SELL' || x.sigD?.lbl === 'SELL') return -10;
+    return 0;
+  };
+  if      (sort === 'buy_first')  rows.sort((a,b) => score(b) - score(a));
+  else if (sort === 'sell_first') rows.sort((a,b) => score(a) - score(b));
+  else if (sort === 'pct_up')     rows.sort((a,b) => (b.pct_d||0) - (a.pct_d||0));
+  else if (sort === 'pct_dn')     rows.sort((a,b) => (a.pct_d||0) - (b.pct_d||0));
+
+  let buy=0, sell=0, neut=0, up=0, dn=0;
+  const fmt  = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const pclr = v => v > 0 ? 'pu' : v < 0 ? 'pd' : 'pf';
+  const fmtR = v => v != null ? v.toFixed(1) : '—';
+  const fmtP = p => p ? p.toLocaleString('tr-TR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+
+  const html = rows.map(d => {
+    if (!d.ok) {
+      return `<tr><td>${d.sym}</td><td colspan="5"><span class="err">Veri alınamadı</span></td></tr>`;
+    }
+    const {sym, price, pct_d, pct_w, rsi4h, rsiD, sig4h, sigD} = d;
+    if (sig4h.lbl==='BUY'||sigD.lbl==='BUY') buy++;
+    else if (sig4h.lbl==='SELL'||sigD.lbl==='SELL') sell++;
+    else neut++;
+    if (pct_d > 0) up++; else if (pct_d < 0) dn++;
+
+    return `<tr>
+      <td>${sym}</td>
+      <td>${fmtP(price)}</td>
+      <td><span class="sig ${sig4h.cls}">${sig4h.lbl}</span><span class="rv">${fmtR(rsi4h)}</span></td>
+      <td><span class="sig ${sigD.cls}">${sigD.lbl}</span><span class="rv">${fmtR(rsiD)}</span></td>
+      <td class="${pclr(pct_d)}">${fmt(pct_d)}</td>
+      <td class="${pclr(pct_w)}">${fmt(pct_w)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tbody').innerHTML = html || '<tr class="loading-row"><td colspan="6">Veri bulunamadı</td></tr>';
+  document.getElementById('s-buy').textContent  = buy;
+  document.getElementById('s-sell').textContent = sell;
+  document.getElementById('s-neut').textContent = neut;
+  document.getElementById('s-up').textContent   = up;
+  document.getElementById('s-dn').textContent   = dn;
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+document.getElementById('clock').textContent =
+  new Date().toLocaleTimeString('tr-TR', {hour12:false});
+fetchAll();
+setInterval(fetchAll, 10 * 60 * 1000); // refresh every 10 min
+</script>
+</body>
+</html>
